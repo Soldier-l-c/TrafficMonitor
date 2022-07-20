@@ -24,9 +24,12 @@
 
 ; Welcome page
 !insertmacro MUI_PAGE_WELCOME
+
+!define MUI_PAGE_CUSTOMFUNCTION_SHOW SetDirectory
 ; Directory page
 !insertmacro MUI_PAGE_DIRECTORY
 ; Instfiles page
+!define MUI_PAGE_CUSTOMFUNCTION_SHOW KillMainProcess
 !insertmacro MUI_PAGE_INSTFILES
 ; Finish page
 !define MUI_FINISHPAGE_RUN "$INSTDIR\TrafficMonitor.exe"
@@ -35,10 +38,21 @@
 ; Uninstaller pages
 !insertmacro MUI_UNPAGE_INSTFILES
 
+LangString UNINSTALL_CONFIRM 1033 "Do you really want to remove $(^Name) completely, and all of its components?"
+LangString UNINSTALL_CONFIRM 2052 "你确实要完全移除 $(^Name) ，其及所有的组件？"
+LangString UNINSTALL_CONFIRM 1028 "你確實要完全移除 $(^Name) ，其及所有的組件？"
+
+LangString UNINSTALL_SUCCESS 1033 "$(^Name) was successfully removed from your computer."
+LangString UNINSTALL_SUCCESS 2052 "$(^Name) 已成功地从你的计算机移除。"
+LangString UNINSTALL_SUCCESS 1028 "$(^Name) 已成功地從你的計算機移除。"
+
+;如果想修改资源文件的目录，修改此处
+!define FileResourceDir "..\Bin\Release"
+!define MAIN_EXE_NAME "TrafficMonitor.exe"
 ; Language files
 !insertmacro MUI_LANGUAGE "English"
 !insertmacro MUI_LANGUAGE "SimpChinese"
-
+!insertmacro MUI_LANGUAGE "TradChinese"
 ; MUI end ------
 
 Name "${PRODUCT_NAME} ${PRODUCT_VERSION}"
@@ -48,20 +62,16 @@ InstallDirRegKey HKLM "${PRODUCT_DIR_REGKEY}" ""
 ShowInstDetails show
 ShowUnInstDetails show
 
-Function .onInit
-  !insertmacro MUI_LANGDLL_DISPLAY
-FunctionEnd
-
 Section "MainSection" SEC01
   SetOutPath "$INSTDIR"
   SetOverwrite try
-  File "..\Bin\Release\LibreHardwareMonitorLib.dll"
-  File "..\Bin\Release\LibreHardwareMonitorLib.xml"
-  File "..\Bin\Release\OpenHardwareMonitorApi.dll"
+  File "${FileResourceDir}\LibreHardwareMonitorLib.dll"
+  File "${FileResourceDir}\LibreHardwareMonitorLib.xml"
+  File "${FileResourceDir}\OpenHardwareMonitorApi.dll"
   SetOutPath "$INSTDIR\plugins"
-  File "..\Bin\Release\plugins\PluginDemo.dll"
+  File "${FileResourceDir}\plugins\PluginDemo.dll"
   SetOutPath "$INSTDIR"
-  File "..\Bin\Release\TrafficMonitor.exe"
+  File "${FileResourceDir}\TrafficMonitor.exe"
   CreateDirectory "$SMPROGRAMS\TrafficMonitor"
   CreateShortCut "$SMPROGRAMS\TrafficMonitor\TrafficMonitor.lnk" "$INSTDIR\TrafficMonitor.exe"
   CreateShortCut "$DESKTOP\TrafficMonitor.lnk" "$INSTDIR\TrafficMonitor.exe"
@@ -82,18 +92,80 @@ Section -Post
   WriteRegStr ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}" "DisplayVersion" "${PRODUCT_VERSION}"
   WriteRegStr ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}" "URLInfoAbout" "${PRODUCT_WEB_SITE}"
   WriteRegStr ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}" "Publisher" "${PRODUCT_PUBLISHER}"
+ WriteRegStr ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}" "InstallLocation" "$INSTDIR"
 SectionEnd
 
+Function SelectLanguage
+  ;根据windowsapi返回值选择语言，不支持语言默认显示英文
+  System::Call 'Kernel32::GetUserDefaultUILanguage() i.r0'
+  ${If} $0 == '1033'
+  ${OrIf} $0 == '1028'
+  ${OrIf} $0 == '2052'
+      StrCpy $LANGUAGE $0
+  ${Else}
+      StrCpy $LANGUAGE 1033
+  ${EndIf}
+FunctionEnd
+
+!AddPluginDir "./plugins"
 
 Function un.onUninstSuccess
   HideWindow
-  MessageBox MB_ICONINFORMATION|MB_OK "$(^Name) 已成功地从你的计算机移除。"
+  MessageBox MB_ICONINFORMATION|MB_OK  "$(UNINSTALL_SUCCESS)"
+FunctionEnd
+
+Function .onInit
+  Call SelectLanguage
 FunctionEnd
 
 Function un.onInit
-!insertmacro MUI_UNGETLANGUAGE
-  MessageBox MB_ICONQUESTION|MB_YESNO|MB_DEFBUTTON2 "你确实要完全移除 $(^Name) ，其及所有的组件？" IDYES +2
+      System::Call 'Kernel32::GetUserDefaultUILanguage() i.r0'
+  ${If} $0 == '1033'
+  ${OrIf} $0 == '1028'
+  ${OrIf} $0 == '2052'
+      StrCpy $LANGUAGE $0
+  ${Else}
+      StrCpy $LANGUAGE 1033
+  ${EndIf}
+  MessageBox MB_ICONQUESTION|MB_YESNO|MB_DEFBUTTON2 "$(UNINSTALL_CONFIRM)" IDYES +2
   Abort
+  
+  nsProcessW::_FindProcess "${MAIN_EXE_NAME}"
+  Pop $R0
+  IntCmp $R0 0 running no_running no_running
+  running:
+  nsProcessW::_KillProcess "${MAIN_EXE_NAME}"
+  no_running:
+FunctionEnd
+
+;主要处理覆盖安装场景
+Function SetDirectory
+  ReadRegStr $0 ${PRODUCT_UNINST_ROOT_KEY} "${PRODUCT_UNINST_KEY}" "InstallLocation"
+
+  ${If} $0 != ""
+    Strcpy $INSTDIR $0
+    ;禁用浏览按钮
+    FindWindow $0 "#32770" "" $HWNDPARENT
+    GetDlgItem $0 $0 1001
+    EnableWindow $0 0
+    ;禁止编辑目录
+    FindWindow $0 "#32770" "" $HWNDPARENT
+    GetDlgItem $0 $0 1019
+    EnableWindow $0 0
+
+    SendMessage $0 ${WM_SETTEXT} 0 "STR:$INSTDIR"
+  ${endif}
+FunctionEnd
+
+Function KillMainProcess
+  nsProcessW::_FindProcess "${MAIN_EXE_NAME}"
+  Pop $R0
+  IntCmp $R0 0 running no_running no_running
+  running:
+  nsProcessW::_KillProcess "${MAIN_EXE_NAME}"
+  no_running:
+  GoTo endding
+  endding:
 FunctionEnd
 
 Section Uninstall
