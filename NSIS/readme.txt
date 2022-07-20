@@ -1,0 +1,3 @@
+备份一下安装生成工具
+安装包生成参考：https://blog.csdn.net/weixin_39571179/article/details/110811416?spm=1001.2101.3001.6650.2&utm_medium=distribute.pc_relevant.none-task-blog-2%7Edefault%7ECTRLIST%7ERate-2-110811416-blog-122761504.pc_relevant_antiscanv2&depth_1-utm_source=distribute.pc_relevant.none-task-blog-2%7Edefault%7ECTRLIST%7ERate-2-110811416-blog-122761504.pc_relevant_antiscanv2&utm_relevant_index=5
+https://www.csdn.net/tags/OtTaIg5sNzc2MjctYmxvZwO0O0OO0O0O.html
